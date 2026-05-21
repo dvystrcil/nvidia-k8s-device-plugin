@@ -15,6 +15,16 @@
 nodeSelector:
   homelab/role: small-model-gpu
 
+# Override the chart's default nodeAffinity. The default requires one
+# of three NFD-set labels: feature.node.kubernetes.io/pci-10de.present,
+# feature.node.kubernetes.io/cpu-model.vendor_id=NVIDIA, or
+# nvidia.com/gpu.present (set by the GPU Operator). We don't run NFD
+# or the GPU Operator — passthrough is hardware-pinned and the
+# nodeSelector above is the only gate we need.
+#
+# Setting {} clears the default; the nodeSelector still applies.
+affinity: {}
+
 # We configured containerd's default runtime to 'nvidia' via
 # `nvidia-ctk runtime configure` during node prep (see homelab#165
 # AC6). So the plugin DOES NOT need a runtimeClass at the pod level.

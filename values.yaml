@@ -1,0 +1,37 @@
+# Helm values for the upstream NVIDIA k8s-device-plugin chart.
+# Chart: https://nvidia.github.io/k8s-device-plugin/nvidia-device-plugin
+#
+# Argo App pulls the chart + this values file via multi-source pattern,
+# mirroring how rocm-k8s-device-plugin is structured.
+#
+# This DaemonSet exposes `nvidia.com/gpu` as a schedulable resource on
+# every node that matches the nodeSelector below. Currently only
+# k8s-node-03 carries the homelab/role=small-model-gpu label (GTX 970
+# via Proxmox PCIe passthrough — see homelab#165).
+
+# Restrict the DaemonSet to GPU-bearing nodes. Without this, the chart
+# tries to schedule on every node and crash-loops on nodes without
+# NVIDIA hardware. Matches the rocm chart's `node_selector` pattern.
+nodeSelector:
+  homelab/role: small-model-gpu
+
+# We configured containerd's default runtime to 'nvidia' via
+# `nvidia-ctk runtime configure` during node prep (see homelab#165
+# AC6). So the plugin DOES NOT need a runtimeClass at the pod level.
+runtimeClassName: ""
+
+# Tolerations match the rocm plugin's pattern. CriticalAddonsOnly lets
+# the DaemonSet schedule on nodes the user has tainted for
+# higher-priority workloads.
+tolerations:
+  - key: CriticalAddonsOnly
+    operator: Exists
+  - key: nvidia.com/gpu
+    operator: Exists
+    effect: NoSchedule
+
+# Default strategy: 'envvar' (the original mode) is fine for our
+# single-GPU passthrough setup. 'cdi' is newer and works with
+# nvidia-container-toolkit's CDI mode, but envvar is more compatible.
+# Revisit if multi-GPU or MIG ever lands here.
+deviceListStrategy: envvar

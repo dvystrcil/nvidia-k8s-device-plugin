@@ -1,0 +1,17 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track the Helm chart version pinned in .chart-version (homelab#816) -- kept in sync with argocd-projects' targetRevision so helm-validate-action's CI check validates values.yaml against the version actually deployed.",
+      "fileMatch": ["^\\.chart-version$"],
+      "matchStrings": ["(?<currentValue>v?[0-9]+\\.[0-9]+\\.[0-9]+)"],
+      "datasourceTemplate": "helm",
+      "depNameTemplate": "nvidia-device-plugin",
+      "registryUrlTemplate": "https://nvidia.github.io/k8s-device-plugin"
+    }
+  ]
+}

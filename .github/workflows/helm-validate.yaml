@@ -1,0 +1,23 @@
+name: validate-helm-values
+
+on:
+  pull_request:
+    paths:
+      - 'values.yaml'
+      - '.chart-version'
+      - '.github/workflows/helm-validate.yaml'
+
+jobs:
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dvystrcil/helm-validate-action@v1
+        with:
+          chart-repo: https://nvidia.github.io/k8s-device-plugin
+          chart-name: nvidia-device-plugin
+          # This chart's own template guard refuses to render outside a
+          # real namespace ("Running in the 'default' namespace is not
+          # recommended") -- pass the actual deploy target
+          # (argocd-projects/k8s-device-plugins destination.namespace).
+          helm-set: "--namespace kube-system"

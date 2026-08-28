@@ -3,15 +3,5 @@
   "extends": [
     "config:recommended"
   ],
-  "customManagers": [
-    {
-      "customType": "regex",
-      "description": "Track the Helm chart version pinned in .chart-version (homelab#816) -- kept in sync with argocd-projects' targetRevision so helm-validate-action's CI check validates values.yaml against the version actually deployed.",
-      "fileMatch": ["^\\.chart-version$"],
-      "matchStrings": ["(?<currentValue>v?[0-9]+\\.[0-9]+\\.[0-9]+)"],
-      "datasourceTemplate": "helm",
-      "depNameTemplate": "nvidia-device-plugin",
-      "registryUrlTemplate": "https://nvidia.github.io/k8s-device-plugin"
-    }
-  ]
+  "description": "`.chart-version` is deliberately NOT watched by renovate. argocd-projects is the gate -- its targetRevision is the only chart pin the cluster deploys from (homelab#1031) -- and renovate now watches that repo directly. Watching both meant one upgrade produced two PRs, and merging the one here first put the repo ahead of the cluster: exactly the drift homelab#1063 audits for. This file stays, because helm-validate-action reads it to pick the chart schema to validate values.yaml against; it now FOLLOWS the gate instead of racing it."
 }

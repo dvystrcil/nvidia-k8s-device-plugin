@@ -1,6 +1,21 @@
 name: validate-helm-values
 
+# A broken chart baseline is invisible to a pull_request-only check: it fails
+# on every PR, so it reads as pre-existing rather than as anyone's regression
+# and gets stepped over. dvystrcil/immich#15 merged with this check red and
+# main could not pass its own validation for two weeks (homelab#1301).
+#
+# Running on push to main puts the failure on the default branch, where the
+# Actions Failure Watcher now looks (dvystrcil/n8n-workflow#205 covers `push`
+# as well as `schedule`, and escalates on two consecutive failures).
+
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'values.yaml'
+      - '.chart-version'
+      - '.github/workflows/helm-validate.yaml'
   pull_request:
     paths:
       - 'values.yaml'

@@ -1,3 +1,28 @@
+# THE GPU CONSTRAINT IS ON THE DRIVER, NOT THIS CHART.
+#
+# The card is a GeForce GTX 970 -- Maxwell, compute capability 5.2, 4GB:
+#
+#   nvidia-smi --query-gpu=name,driver_version,compute_cap,memory.total
+#   NVIDIA GeForce GTX 970, 535.309.01, 5.2, 4096 MiB
+#
+# NVIDIA retires architectures on a DRIVER-branch boundary. Kepler ended at
+# 470; Maxwell/Pascal/Volta are slated to end with 580. Crossing that does not
+# degrade this card, it drops it -- no CUDA, no device advertisement, and the
+# SMALL ollama lane on node-03 loses its GPU.
+#
+# That is enforced in dvystrcil/ansible playbooks/pin-nvidia-driver.yml, which
+# holds nvidia-driver-535 on node-03 (unattended-upgrades is enabled there).
+# It is NOT enforced by this chart version, and never was.
+#
+# Recorded here because the constraint was real, remembered, and attached to
+# the wrong thing: `.chart-version` sat at 0.17.4 while the cluster ran 0.20.0,
+# and that gap looked like a deliberate hold. It was not -- Renovate bumped the
+# deploy side in argocd-projects#204 on 2026-08-28 and this file never moved.
+# Chart 0.20.0 runs fine on this card today.
+#
+# So: bumping THIS file is safe on GPU-support grounds. Bumping the DRIVER is
+# what needs care.
+
 # Helm values for the upstream NVIDIA k8s-device-plugin chart.
 # Chart: https://nvidia.github.io/k8s-device-plugin/nvidia-device-plugin
 #

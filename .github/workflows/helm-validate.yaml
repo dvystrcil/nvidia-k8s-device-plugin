@@ -14,23 +14,26 @@ on:
     branches: [main]
     paths:
       - 'values.yaml'
-      - '.chart-version'
       - '.github/workflows/helm-validate.yaml'
   pull_request:
     paths:
       - 'values.yaml'
-      - '.chart-version'
       - '.github/workflows/helm-validate.yaml'
 
 jobs:
   helm:
-    runs-on: ubuntu-latest
+    # <repo>-helm-runner (arc-isolated tier) mounts the read-only argocd-projects
+    # token; the chart pin is read from the Application that deploys it
+    # (homelab architecture/chart-version-source-of-truth.md, A3).
+    runs-on: nvidia-k8s-device-plugin-helm-runner
     steps:
       - uses: actions/checkout@v7
-      - uses: dvystrcil/helm-validate-action@v1
+      - uses: dvystrcil/helm-validate-action@v2
         with:
           chart-repo: https://nvidia.github.io/k8s-device-plugin
           chart-name: nvidia-device-plugin
+          argocd-application: k8s-device-plugins/nvidia-k8s-device-plugin.yaml
+          github-token-file: /etc/argocd-projects-token/token
           # This chart's own template guard refuses to render outside a
           # real namespace ("Running in the 'default' namespace is not
           # recommended") -- pass the actual deploy target

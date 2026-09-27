@@ -3,5 +3,5 @@
   "extends": [
     "config:recommended"
   ],
-  "description": "`.chart-version` is deliberately NOT watched by renovate. argocd-projects is the gate -- its targetRevision is the only chart pin the cluster deploys from (homelab#1031) -- and renovate now watches that repo directly. Watching both meant one upgrade produced two PRs, and merging the one here first put the repo ahead of the cluster: exactly the drift homelab#1063 audits for. This file stays, because helm-validate-action reads it to pick the chart schema to validate values.yaml against; it now FOLLOWS the gate instead of racing it."
+  "description": "No .chart-version here any more: helm-validate-action@v2 reads the chart pin from this app's argocd-projects Application, the one pin that deploys (homelab#1443 option A). Renovate bumps that pin in argocd-projects."
 }

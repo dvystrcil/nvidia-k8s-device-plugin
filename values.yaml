@@ -3,15 +3,17 @@
 # The card is a GeForce GTX 970 -- Maxwell, compute capability 5.2, 4GB:
 #
 #   nvidia-smi --query-gpu=name,driver_version,compute_cap,memory.total
-#   NVIDIA GeForce GTX 970, 535.309.01, 5.2, 4096 MiB
+#   NVIDIA GeForce GTX 970, 580.178.04, 5.2, 4096 MiB      (2026-10-02)
 #
 # NVIDIA retires architectures on a DRIVER-branch boundary. Kepler ended at
-# 470; Maxwell/Pascal/Volta are slated to end with 580. Crossing that does not
-# degrade this card, it drops it -- no CUDA, no device advertisement, and the
-# SMALL ollama lane on node-03 loses its GPU.
+# 470; the Linux 580 legacy branch is the LAST for Maxwell/Pascal/Volta
+# (NVIDIA a_id 3142). Past 580 this card is not degraded, it is dropped -- no
+# CUDA, no device advertisement.
 #
-# That is enforced in dvystrcil/ansible playbooks/pin-nvidia-driver.yml, which
-# holds nvidia-driver-535 on node-03 (unattended-upgrades is enabled there).
+# That is enforced in dvystrcil/ansible: host_vars/192.168.86.59.yml sets
+# nvidia_driver_branch: 580 (moved from 535 on 2026-10-02, homelab#1487),
+# playbooks/pin-nvidia-driver.yml holds it, and
+# tests/test-nvidia-driver-branch.sh fails any branch > 580 for compute < 7.5.
 # It is NOT enforced by this chart version, and never was.
 #
 # Recorded here because the constraint was real, remembered, and attached to
@@ -70,3 +72,44 @@ tolerations:
 # nvidia-container-toolkit's CDI mode, but envvar is more compatible.
 # Revisit if multi-GPU or MIG ever lands here.
 deviceListStrategy: envvar
+
+# ---------------------------------------------------------------------------
+# GPU SHARING: time-slicing (homelab#1487 AC2)
+#
+# One GTX 970 serves several workloads: the small ollama lane, immich
+# machine-learning, Jellyfin (NVENC, H.264 only on GM204) and obico ml-api.
+# Time-slicing makes the plugin advertise `nvidia.com/gpu: 4` instead of 1;
+# each workload still requests `nvidia.com/gpu: 1` and gets one slice.
+#
+# Time-slicing shares COMPUTE by interleaving. It does NOT partition memory:
+# every slice sees all 4 GiB and nothing stops one workload taking it all. So
+# the VRAM budget below is a hand-kept contract, measured, not enforced. (MPS
+# could cap memory, but per-client memory limits need Volta+; MIG needs
+# Ampere+. Neither applies to Maxwell.)
+#
+#   consumer                 budget    measured                          notes
+#   ollama-small-cuda        <=1.8GiB  2720 MiB peak with llama3.2:1b    unloads after keep-alive;
+#                                      (1252 MiB model + CUDA ctx/KV)    idle since n8n-workflow#267
+#   immich-machine-learning  <=1.0GiB  (measure in AC3)                  CLIP + face models
+#   jellyfin (NVENC)         <=0.3GiB  (measure in AC3)                  per concurrent transcode
+#   obico ml-api             <=0.8GiB  (measure in AC3)                  darknet detector
+#   ---------------------------------------------------------------------
+#   total                    <=3.9GiB  of 4096 MiB (last 512 MiB is the slow segment)
+#
+# ollama's measured peak alone breaks its budget if a model is loaded while
+# the others run: AC4 decides whether that lane is retired or capped.
+#
+# failRequestsGreaterThanOne: a pod asking for 2 slices would believe it had
+# 2 GPUs' worth of memory; refuse instead of pretending.
+config:
+  map:
+    default: |-
+      version: v1
+      sharing:
+        timeSlicing:
+          renameByDefault: false
+          failRequestsGreaterThanOne: true
+          resources:
+            - name: nvidia.com/gpu
+              replicas: 4
+  default: default

@@ -3,15 +3,17 @@
 # The card is a GeForce GTX 970 -- Maxwell, compute capability 5.2, 4GB:
 #
 #   nvidia-smi --query-gpu=name,driver_version,compute_cap,memory.total
-#   NVIDIA GeForce GTX 970, 535.309.01, 5.2, 4096 MiB
+#   NVIDIA GeForce GTX 970, 580.178.04, 5.2, 4096 MiB      (2026-10-02)
 #
 # NVIDIA retires architectures on a DRIVER-branch boundary. Kepler ended at
-# 470; Maxwell/Pascal/Volta are slated to end with 580. Crossing that does not
-# degrade this card, it drops it -- no CUDA, no device advertisement, and the
-# SMALL ollama lane on node-03 loses its GPU.
+# 470; the Linux 580 legacy branch is the LAST for Maxwell/Pascal/Volta
+# (NVIDIA a_id 3142). Past 580 this card is not degraded, it is dropped -- no
+# CUDA, no device advertisement.
 #
-# That is enforced in dvystrcil/ansible playbooks/pin-nvidia-driver.yml, which
-# holds nvidia-driver-535 on node-03 (unattended-upgrades is enabled there).
+# That is enforced in dvystrcil/ansible: host_vars/192.168.86.59.yml sets
+# nvidia_driver_branch: 580 (moved from 535 on 2026-10-02, homelab#1487),
+# playbooks/pin-nvidia-driver.yml holds it, and
+# tests/test-nvidia-driver-branch.sh fails any branch > 580 for compute < 7.5.
 # It is NOT enforced by this chart version, and never was.
 #
 # Recorded here because the constraint was real, remembered, and attached to
@@ -70,3 +72,48 @@ tolerations:
 # nvidia-container-toolkit's CDI mode, but envvar is more compatible.
 # Revisit if multi-GPU or MIG ever lands here.
 deviceListStrategy: envvar
+
+# ---------------------------------------------------------------------------
+# GPU SHARING: time-slicing, counted in VRAM UNITS (homelab#1487 AC2)
+#
+# One GTX 970 serves several workloads that can tolerate node-03 being down
+# (immich ML queues its jobs, obico pauses detection, the small ollama lane
+# waits). Time-slicing shares COMPUTE by interleaving; it does NOT partition
+# memory -- MPS memory caps need Volta+, MIG needs Ampere+, neither fits
+# Maxwell. So memory is accounted for at SCHEDULING time instead:
+#
+#   the card is advertised as 14 units of 256 MiB  (14 x 256 = 3.5 GiB, the
+#   GTX 970's fast segment; the last 512 MiB is slow and is left as headroom)
+#
+# Each consumer requests `nvidia.com/gpu: <units>` equal to its VRAM budget,
+# and the scheduler refuses any pod that would take the total past 14. That
+# is real admission control over VRAM. It is NOT a runtime limit -- a process
+# can still use more than it asked for -- so each budget is checked against a
+# measured footprint.
+#
+#   consumer                 units  budget   measured
+#   ollama-small-cuda          7    1.75GiB  2720 MiB peak with llama3.2:1b  <-- OVER: AC4
+#   immich-machine-learning    4    1.00GiB  (measure in AC3)
+#   obico ml-api               3    0.75GiB  (measure in AC3)
+#   -------------------------------------------------------------
+#   total                     14    3.50GiB
+#   (Jellyfin is NOT a consumer: it must keep working when node-03 is down,
+#    so it stays CPU/VAAPI-capable and never depends on this card.)
+#
+# failRequestsGreaterThanOne: false is deliberate. It exists to stop a pod
+# asking for 2 slices expecting 2 GPUs' worth of compute; here a multi-unit
+# request means "this much VRAM", which is the point. (Verified in the
+# plugin source, internal/rm/rm.go: multi-replica requests are rejected ONLY
+# when this flag is true.)
+config:
+  map:
+    default: |-
+      version: v1
+      sharing:
+        timeSlicing:
+          renameByDefault: false
+          failRequestsGreaterThanOne: false
+          resources:
+            - name: nvidia.com/gpu
+              replicas: 14
+  default: default

@@ -67,11 +67,29 @@ tolerations:
     operator: Exists
     effect: NoSchedule
 
-# Default strategy: 'envvar' (the original mode) is fine for our
-# single-GPU passthrough setup. 'cdi' is newer and works with
-# nvidia-container-toolkit's CDI mode, but envvar is more compatible.
-# Revisit if multi-GPU or MIG ever lands here.
-deviceListStrategy: envvar
+# homelab#1724: with 'envvar' alone, ANY pod on node-03 whose image sets
+# NVIDIA_VISIBLE_DEVICES=all (every nvidia/cuda base image) got the GTX 970
+# without requesting nvidia.com/gpu -- the runtime honoured the image's env
+# var, so the 14-unit VRAM accounting below was not enforced.
+#
+# The fix is two halves, applied in this order:
+#   1. here: also pass the allocation as volume mounts (the runtime can only
+#      see those when the device plugin allocated them -- an image cannot
+#      fake a mount);
+#   2. ansible playbooks/configure-nvidia-gpu-isolation.yml: the runtime
+#      stops honouring the env var for unprivileged containers and reads the
+#      mounts instead.
+# 'envvar' stays in the list so step 1 changes nothing on its own: until
+# step 2 lands the runtime ignores the mounts and keeps using the env var.
+deviceListStrategy: "envvar,volume-mounts"
+
+# The plugin itself reaches NVML only because the runtime honours its own
+# NVIDIA_VISIBLE_DEVICES=all. Once step 2 refuses that for unprivileged
+# containers, an unprivileged plugin sees no GPU and advertises 0 units.
+# Privileged is NVIDIA's documented setup for volume-mounts (and what
+# gpu-operator runs); it lives in kube-system.
+securityContext:
+  privileged: true
 
 # ---------------------------------------------------------------------------
 # GPU SHARING: time-slicing, counted in VRAM UNITS (homelab#1487 AC2)

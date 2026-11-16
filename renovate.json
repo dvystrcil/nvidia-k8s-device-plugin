@@ -1,7 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "local>dvystrcil/renovate-config"
   ],
   "description": "No .chart-version here any more: helm-validate-action@v2 reads the chart pin from this app's argocd-projects Application, the one pin that deploys (homelab#1443 option A). Renovate bumps that pin in argocd-projects."
 }

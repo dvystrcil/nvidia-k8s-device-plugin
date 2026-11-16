@@ -27,7 +27,7 @@ jobs:
     # (homelab architecture/chart-version-source-of-truth.md, A3).
     runs-on: nvidia-k8s-device-plugin-helm-runner
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dvystrcil/helm-validate-action@v2
         with:
           chart-repo: https://nvidia.github.io/k8s-device-plugin
